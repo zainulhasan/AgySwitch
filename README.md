@@ -96,10 +96,10 @@ Heavy daily usage of frontier models in Google Antigravity CLI (`agy`) quickly e
 
 ### 3. Automatic Quota-Exhaustion Switching (Passive Local Log Monitoring)
 - When **Auto-switch on quota limit** is enabled, AgySwitch passively tails newly appended lines in `~/.gemini/antigravity-cli/log/cli-*.log` and `acp-server-*.log` (covering both terminal `agy` and T3 Code sessions)—**performing zero network polling**.
-- Accurately detects `RESOURCE_EXHAUSTED`, `QUOTA_EXHAUSTED`, `MODEL_CAPACITY_EXHAUSTED`, and `429` rate-limit errors:
-  - **False-Positive Filtering**: Filters out glog thread IDs containing `429` and non-error configuration lines.
-  - **30-Second Debounce & Log Retirement**: Retires previous session log markers immediately after a switch so an already-running process emitting trailing errors never triggers cascading switches.
-  - **Smart Cooldown Duration**: Parses the official quota reset timestamp from the log whenever available; otherwise falls back to your selected default cooldown (`5h` / `3h` / `1h`).
+- Detects Google's quota markers (`RESOURCE_EXHAUSTED`, `QUOTA_EXHAUSTED`, `STOP_REASON_QUOTA_EXHAUSTED`, `Individual quota reached`) and, on agy's error- and warning-level lines, generic `429` / quota wording:
+  - **False-Positive Filtering**: Filters out glog thread IDs containing `429`, non-error configuration lines, MCP and tool output, background polls (including their multi-line JSON error bodies), and requests agy is still retrying. `MODEL_CAPACITY_EXHAUSTED` (a server-side shortage, not your quota) never triggers a switch.
+  - **Per-Account Attribution & Log Retirement**: Each log is matched to the account its agy process signed in with (`applyAuthResult: email=…`), so a session running on another account, or through a gateway, can't switch the active one. A log without a sign-in line is attributed to the account that was active when it appeared, and isn't trusted for 30 seconds after a switch. Logs from sessions started before a switch are retired; an exhaustion in a session started after the switch is handled right away.
+  - **Smart Cooldown Duration**: Uses agy's own reset time (`Resets in 4h58m54s`, a reset timestamp, or `retryDelay`); otherwise falls back to your selected default cooldown (`5h` / `3h` / `1h`). After a failed switch (for example, every other account cooling down) it waits 30 seconds, then retries with the latest error from each account that arrived meanwhile.
   - **Native Notification**: Automatically activates the next available account and posts a macOS system notification.
 
 ### 4. Ultra-Lightweight Native macOS Menu Bar App
